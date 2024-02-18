@@ -1,0 +1,546 @@
+---
+title: "Zestaw nr 2"
+author: "Weronika Duda"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    smooth_scroll: true
+    collpased: true
+    df_print: paged
+    number_sections: false
+    warnings: false
+    theme: united
+    highlight: tango
+---
+
+# Zadanie 1
+
+Tworzę obiekt `lista2` i korzystam z funkcji `lapply()`, żeby policzyć podstawowe statystyki opisowe. 
+
+```{r}
+lista2 <- list(dane1 = c(NA, 1:10),
+               dane2 = c(-5:5, NA))
+
+lista2
+```
+```{r}
+lapply(lista2, mean, na.rm = TRUE)
+
+lapply(lista2, sd, na.rm = TRUE)
+
+lapply(lista2, quantile, na.rm = TRUE)
+```
+# Zadanie 2
+
+1. Dla poniższego zestawu danych korzystam z funkcji `sapply()`, aby wyznaczyć maximum i minimum.
+
+```{r}
+lista4 <- list(dane1 = 20:1,
+               dane2 = 1:10,
+               dane3 = 1:5)
+
+lista4
+```
+
+```{r}
+sapply(lista4, max)
+
+sapply(lista4, min)
+```
+```{r}
+typeof(lista4)
+is.array(lista4)
+is.vector(lista4)
+```
+
+*Wniosek: * Funkcja `sapply()`wykonuje pętlę po liście z funkcją weryfikowaną dla każdego elementu listy, ale stara się uprościć wynik. Funkcja `lapply()` zwraca listę wyników, zachowując oryginalną strukturę.
+
+2. Buduję funkcję mierzącą współczynnik zmienności i testuję go dla przykładowych wartości.
+
+$V = \frac{sd}{mean}$
+
+```{r}
+wspolczynnik_zmiennosci <- function(a)
+{
+return (sd(a)/mean(a))
+}
+
+test_a <- c(10000, 200)
+wspolczynnik_zmiennosci(test_a)
+```
+```{r}
+lista_proba <-list(dane1 = 100:1,
+               dane2 = 1:10,
+               dane3 = 1:50)
+
+sapply(lista_proba, wspolczynnik_zmiennosci)
+```
+
+*Wniosek: * Da się dla stworzonej funkcji `wspolczynnik_zmiennosci` zastosować funkcję `sapply()`.
+
+# Zadanie 3
+
+Sprawdzam jak działa funkcja `apply()` i czym się różni od wcześniejszych funkcji.
+
+1. Zastosowanie dla obliczania sumy kolumn w macierzy:
+
+```{r}
+matrix_1 <- matrix(1:9, nrow = 3)
+
+suma_kolumn <- apply(matrix_1, 2, sum)
+suma_kolumn
+
+```
+
+2. Zastosowanie dla obliczania średniej wierszy w ramce danych:
+
+```{r}
+df_1 <- data.frame(x = c(11, 12, 13), 
+                 y = c(14, 15, 16))
+
+srednia_wierszy <- apply(df_1, 1, mean)
+srednia_wierszy
+```
+
+3. Zastosowanie dla znajdowania maksymalnej wartości w każdym wierszu ramki danych:
+
+```{r}
+df_2 <- data.frame(x = c(1, 100, 13), y = c(13, 5, 36))
+
+max_w_wierszach <- apply(df_2, 1, max)
+max_w_wierszach
+```
+
+*Wniosek: * Funkcja `apply()` różni się od `sapply()` czy `lapply()`, głównie tym, że pozwala na wykonywanie operacji na całych wierszach czy kolumnach macierzy lub ramki danych, a nie na pojedynczych elementach. 
+
+# Zadanie 4
+
+* Oglądam zestaw danych `mtcars`.
+
+```{r}
+mtcars
+```
+
+* Z wykorzystaniem funkcji `tapply()`, uzyskuję informację o przeciętnym spalaniu w zależności od liczby cylindrów.
+
+```{r}
+tapply(mtcars$mpg, mtcars$cyl , mean)
+```
+
+* Rozszerzam analizę przeciętnego poziomu spalania w zależności od liczby cylindrów wyświetlając podstawowe statystyki opisowe.
+
+```{r}
+by(mtcars$mpg, mtcars$cyl, summary)
+```
+
+# Zadanie 5 
+
+* Oglądam dane przedstawione w ramce `anscombe`oraz wczytuję dane `fgs` z pakietu `MASS`.
+
+```{r}
+anscombe
+```
+
+```{r, include=FALSE, echo=FALSE, warning=FALSE}
+install.packages("MASS", repos = "https://cran.rstudio.com/")
+library(MASS)
+```
+
+```{r}
+fgl
+```
+
+* Używam funkcji z rodziny `apply()` do wyznaczenia średnich we wszystkich kolumnach wybranej ramki danych. 
+
+```{r}
+srednie_w_kol <- apply(anscombe, 2, mean)
+srednie_w_kol
+```
+
+* Używam funkcji `str()` do sprawdzenia, które kolumny są numeryczne i powtarzam proces z zad. 1 tylko do tych kolumn.
+
+```{r}
+str(anscombe)
+str(fgl)
+```
+
+* Sprawdzam typy kolumn.
+
+```{r}
+numeryczne_kolumny <- sapply(anscombe, is.numeric)
+numeryczne_kolumny
+```
+
+* Obliczam średnie z kolumn numerycznych.
+
+```{r}
+srednie_numerycznych <- apply(anscombe[, numeryczne_kolumny], 2, mean)
+
+srednie_numerycznych
+```
+
+* Używam funkcji z rodziny`apply()` do wyznaczenia mediany we wszystkich kolumnach iloścowych. 
+
+```{r}
+mediany <- apply(anscombe[, numeryczne_kolumny], 2, median)
+mediany
+```
+
+* Sprawdzam, dla której zmiennej widzimy największą różnicę między średnią a medianą.
+
+```{r}
+roznica_sr_mediana <- srednie_numerycznych - mediany
+roznica_sr_mediana
+
+najwieksza_roznica <- which.max(abs(roznica_sr_mediana))
+najwieksza_roznica
+```
+
+* Używam funkcji z rodziny `apply()` do obliczenia odchylenia standardowego dla wszystkich kolumn ilościowych.
+
+```{r}
+odchylenia_std <- apply(anscombe[, numeryczne_kolumny], 2, sd)
+odchylenia_std
+```
+
+* Używam funkcji z rodziny `apply()`współczynnika zmienności dla wszystkich kolumn ilościowych.
+
+```{r}
+wspolczynnik_zmiennosci <- odchylenia_std / srednie_numerycznych
+wspolczynnik_zmiennosci
+```
+
+# Zadanie 6
+
+* Korzystając z funkcji `install.packages()` i `library()` instaluję, a następnie wczytuję pakiety: `tidyr`, `dplyr` oraz `gapminder`.
+
+```{r, include=FALSE, echo=FALSE, warning=FALSE}
+install.packages("tidyr", repos = "https://cran.rstudio.com/")
+install.packages("dplyr", repos = "https://cran.rstudio.com/")
+install.packages("gapminder", repos = "https://cran.rstudio.com/")
+```
+
+```{r, echo=FALSE, warning=FALSE}
+library(tidyr)
+library(dplyr)
+library(gapminder)
+```
+
+```{r}
+str(gapminder)
+```
+
+1. Zmieniam nazwy zmiennych: zmienną `year` nazywam rok, a zmienną `gdpPercap` nazywam PKB.
+
+```{r}
+zmieniam_nazwe_rok_PKB <- gapminder %>%
+  rename(rok = year) %>%
+  rename(PKB = gdpPercap)
+
+zmieniam_nazwe_rok_PKB[1:5,]
+```
+
+2. Zmieniam wartości zmiennej `pop` tak, aby ludność była przedstawiona w milionach osób.
+
+```{r}
+kraje_w_mln <- gapminder %>%
+  mutate(pop = pop/1000000)
+
+kraje_w_mln[1:5,]
+```
+
+3. Wyświetlam wszystkie kraje afrykańskie, które w roku 1957 miały PKB większe niż 12000$.
+
+```{r}
+kraje_afrykanskie_1957 <- gapminder %>%
+  filter(continent == "Africa", year == 1957, gdpPercap > 12000)
+
+kraje_afrykanskie_1957
+```
+
+* Instaluję i wczytuję pakiet: `ggplot2`
+
+```{r, include=FALSE, echo = F}
+install.packages("ggplot2", repos = "https://cran.r-project.org")
+```
+
+* Rysuję wykres, który pokazuje ile krajów arykańskich z PKB większym niż 12000$ było w każdym roku badania.
+
+```{r}
+library(ggplot2)
+
+ggplot(data = gapminder %>%
+        filter(continent == "Africa" & gdpPercap > 12000)) +
+  geom_histogram(mapping = aes(x = year), 
+                 fill = "lightblue", col = "black", 
+                 bins = 30) +
+  labs(title = "Liczba krajów afrykańskich z PKB > 12000$ w każdym roku",
+       x = "Rok", y = "Liczba krajów") +
+  theme_minimal()
+```
+
+4. Sprawdzam, które kraje spoza Afryki w roku 1962 miały PKB mniejsze od 750$.
+
+```{r}
+kraje_nie_afrykanskie_1962 <- gapminder %>%
+  filter(continent != "Africa",
+         year == 1962,
+         gdpPercap < 750)
+
+kraje_nie_afrykanskie_1962
+```
+
+5. Na przykładzie lat 1952, 1977 i 2002 sprawdzam, ile wynosiła przeciętna długość życia w Polsce i Ameryce. 
+
+```{r}
+przecietna_dl_zycia_PL <- gapminder %>%
+  filter(country == "Poland", year %in% c(1952, 1977, 2002)) %>%
+  select(year, lifeExp)
+
+przecietna_dl_zycia_PL
+```
+
+```{r}
+przecietna_dl_zycia_Ameryki <- gapminder %>%
+    filter(continent == "Americas" , year %in% c(1952, 1977, 2002)) %>%
+    select(country, year, lifeExp)
+
+head(przecietna_dl_zycia_Ameryki)
+```
+
+* Sprawdzam, w których krajach obu Ameryk była ona większa niż w Polsce.
+
+```{r}
+dane_pl_ameryki <- przecietna_dl_zycia_PL %>%
+  full_join(przecietna_dl_zycia_Ameryki, by = c("year")) 
+
+kraje_wieksza_dlugosc <- dane_pl_ameryki %>%
+  filter(lifeExp.x < lifeExp.y) %>%
+  select(year, lifeExp.x, country, lifeExp.y) %>%
+  rename(Rok = year, 
+         DlugoscZyciaPolska = lifeExp.x, 
+         KrajAmeryki = country,
+         DlugoscZyciaAmeryka = lifeExp.y)
+
+kraje_wieksza_dlugosc
+```
+
+**Wnioski:**
+
+- Przez lata obserwowany jest systematyczny wzrost średniej oczekiwanej długości życia w Polsce oraz w innych krajach, które były uwzględnione w analizie. 
+
+- Kraje takie jak Portoryko, Stany Zjednoczone i Kanada regularnie pojawiają się w zestawieniu z wyższymi wartościami oczekiwanej długości życia niż Polska w badanych latach. 
+
+- Meksyk i Chile pojawiają się w zestawieniu dopiero w roku 2002. To może sugerować, że te kraje stosunkowo niedawno osiągnęły wzrost ekonomiczny i społeczny, który przyczynił się do wydłużenia oczekiwanej długości życia mieszkańców. 
+
+6. Wyznaczam podstawowe statystyki opisowe dot. wielkości populacji na różnych kontynentach w roku 2007 z wykorzystaniem funkcji `group_by()` i `summarize()`.
+
+```{r}
+populacja_2007 <- gapminder %>%
+  filter(year == 2007) %>%
+  group_by(continent) %>%
+  summarize(dl_zycia = mean(lifeExp) ,
+            max_pop = max(pop) ,
+            min_gdpPercap = min(gdpPercap),
+            sd_pop = sd(pop),)
+
+populacja_2007
+```
+
+7. Wśród krajów o PKB niższym od 5000$ (rozważam dane za rok 1977), wyznaczam po trzy kraje z Afryki, Europy i Azji, w których spodziewana długość życia jest największa.
+
+```{r}
+kraje_LifeExp <- gapminder %>% 
+  filter( year == 1977, gdpPercap < 5000) %>%
+  group_by(continent) %>%
+  top_n(3, wt = lifeExp) %>%
+  arrange(continent, desc(lifeExp))
+
+kraje_LifeExp
+```
+
+8. Tworzę wektory krajów RWPG i UE. Następnie wczytuję dane z 1987 roku oraz dodaję zmienną `system`, która przyjmuje jedną z trzech wartości: "RWPG" dla krajów RWPG, "UE" dla krajów Unii Europejskiej i "Inne" dla pozostałych krajów.
+
+* Do wyfiltrowania krajów europejskich w roku 1987 korzystam z funkcji `subset()`, która służy do wybierania podzbiorów danych z ramki danych na podstawie warunków. 
+
+```{r}
+library(gapminder)
+
+kraje_rwpg <- c("Poland", "Hungary", "Bulgaria", "Slovak Republic", 
+                "Czech Republic", "Albania", "Mongolia", "China", "Korea, Rep.")
+
+kraje_ue <- c("Germany", "Austria", "Belgium", "Denmark", "Spain", "France", 
+              "Greece", "Ireland", "Italy", "Luxembourg", "Netherlands", "Portugal")
+
+dane_1987 <- subset(gapminder, year == 1987 & continent == "Europe")
+
+dane_1987$system <- ifelse(dane_1987$country %in% kraje_rwpg, "RWPG",
+                            ifelse(dane_1987$country %in% kraje_ue, "UE", "Inne"))
+
+head(dane_1987)
+```
+
+* Obliczam podstawowe statystki opisowe dla każdej kategorii kraju (według jego systemu).
+
+```{r}
+statystyki_opisowe_zad6 <- dane_1987 %>%
+  group_by(system) %>%
+  summarize(
+    srednia_pop = mean(pop),
+    srednie_lifeExp = mean(lifeExp),
+    srednie_PKB = mean(gdpPercap),
+    odchylenie_standardowe_pop = sd(pop),
+    Q1 = quantile(lifeExp, 0.25),
+    Q3 = quantile(lifeExp, 0.75)
+  )
+
+statystyki_opisowe_zad6
+```
+
+**Wnioski:**
+
+1. Kraje RWPG miały najwyższą średnią populację w 1987 roku.
+
+2. Kraje UE charakteryzują się najwyższą średnią długością życia oraz najwyższym PKB na osobę spośród tych grup w roku 1987.
+
+3. Największa zmienność w populacji była, w roku 1987, w krajach RWPG.
+
+4. W krajach UE, w roku 1987, rozkłady oczekiwanej długości życia były najbardziej skoncentrowane wokół średniej wartości.
+
+# Zadanie 7
+
+Na jednym wykresie liniowym rysuję, jak w rozważanych latach zmieniała się oczekiwana długość życia w Japonii, Chinach i Indonezji. 
+
+```{r}
+gapminder %>%
+  filter(country %in% c("Japan", "China", "Indonesia")) %>%
+  ggplot() +
+  geom_line(mapping = aes(x = year, y = lifeExp, col = country), linewidth = 1) +
+  labs(
+    title = "Zmiana długości życia na przestrzeni lat w Japonii, Chinach i Indonezji ",
+    x = "Rok", y = "Oczekiwana długość życia", color = "Kraj") +
+  theme_light()
+```
+
+# Zadanie 8
+
+* Funkcja `set.seed()` służy do inicjalizacji generatora liczb pseudolosowych. Funkcja ta jest używana, by kontrolować generowanie tych samych "losowych" liczb w przyszłości. Nastepnie korzystając z funkcji takich jak np. `sample()`, uzyskuje się powtarzalne wyniki w symulacjach.
+
+* Z wykorzystaniem funkcji `sample()` symuluję rzut kostką sześcienną. 
+Rzut wykonywany będzie: 2, 10, 50, 100 i 1000 razy. 
+
+```{r}
+set.seed(123)
+
+liczba_rzutow_kostka <- c(2, 10, 50, 100, 1000)
+
+wyniki_symulacji <- lapply(liczba_rzutow_kostka, 
+                           function(n) sample(1:6, n, replace = TRUE))
+```
+
+* Korzystam z funkcji `table()` do zliczania, ile razy każda liczba wypadła w tym doświadczeniu.
+
+```{r}
+tablice_wynikow <- lapply(wyniki_symulacji, table)
+
+tablice_wynikow
+```
+
+* Wykorzystuję funkcję `mean()`, by wyznaczyć średnią liczbę oczek w doświadczeniu.
+
+```{r}
+srednie_wyniki_rzutow <- sapply(wyniki_symulacji, function(wyniki) mean(wyniki))
+round(srednie_wyniki_rzutow)
+```
+
+* **Symulacja Monte Carlo** - technika numeryczna wykorzystywana do modelowania i analizy problemów poprzez generowanie losowych próbek z rozkładów prawdopodobieństwa. 
+
+```{r}
+symulacja <- function() {
+  play_off <- sum(sample(c(0,1), 7, 
+                       replace = TRUE,
+                       prob = c(0.35,0.65)))
+  return(play_off)
+}
+
+wyniki_rywalizacji <- replicate(10000, symulacja())
+
+liczba_zwyciestw <- sum(wyniki_rywalizacji >= 4)
+cat("Liczba zwycięstw:", liczba_zwyciestw, "\n")
+
+czestosc_wygranych <- (liczba_zwyciestw / 10000)
+procentowo_czestosc <- czestosc_wygranych * 100
+
+wynik_w_procentach <- paste(procentowo_czestosc, "%")
+cat("Częstotość zwycięstw:", wynik_w_procentach, "\n")
+```
+
+
+# Zadanie 9
+
+* Analizuję dane `mammals` oraz `Animals2`pod kątem różnic między zwięrzetami schrakteryzowanymi w obu zestawach danych. 
+
+```{r, echo=FALSE, warning=FALSE}
+install.packages("robustbase", repos = "https://cran.rstudio.com/")
+```
+
+```{r, echo=FALSE, warning=FALSE}
+library(robustbase)
+library(MASS)
+```
+
+```{r}
+head(mammals)
+head(Animals2)
+```
+
+* Tworzę wektor `zwierzaki` przechowujący nazwy gatunków zwierząt powtarzających się w obu ramkach danych.
+
+```{r}
+zwierzaki <- intersect(rownames(mammals), rownames(Animals2))
+
+zwierzaki
+```
+
+* Korzystając z funkcji `setdiff()`wyświetlam nazwy zwierząt obecnych w zestawie `mammals`, których nie ma w zestawie `Animals2`. 
+
+```{r}
+setdiff(rownames(mammals), rownames(Animals2))
+```
+
+* Używam funkcji `setdiff()`, aby wyświetlić nazwy zwierząt obecnych w `Animals2`, które nie występują w zestawie `mammals`.
+
+```{r}
+setdiff(rownames(Animals2), rownames(mammals))
+```
+
+
+# Zadanie 10
+
+* Używam funkcji `qnorm()` by wyznaczyć 5% i 95% kwantyl dla rozkładu N(0,1).
+
+```{r}
+qnorm(0.05)
+qnorm(0.95)
+```
+
+* Używam funkcji `qt()`, by wyznaczyć 5% i 95% kwantyl dla rozkładu t-Studenta.
+Załadam, że liczba stopni swobody (parametr tego rozkładu) wynosi odpowiednio 1, 5, 10, 30, 50 i 1000. 
+
+```{r}
+tStudent <- c(1, 5, 10, 30, 50, 1000)
+for (df in tStudent) {
+  kwantyl_5 <- qt(0.05, df)
+  kwantyl_95 <- qt(0.95, df)
+  cat(paste("Stopnie swobody:", df, 
+            " 5% kwantyl:", kwantyl_5, 
+            " 95% kwantyl:", kwantyl_95, "\n"))
+}
+```
+
+*Wniosek:*
+Badając poszczególne wyniki można wywnioskować, że im więcej stopni swobody, tym bardziej rozkład t-Studenta przypomina rozkład normalny, czyli przybliżenie rozkładu normalnego staje się coraz dokładniejsze wraz zezwiększaniem liczby stopni swobody.
+
