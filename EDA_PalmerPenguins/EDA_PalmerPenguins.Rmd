@@ -1,0 +1,894 @@
+---
+title: "Analiza eksploracyjna danych"
+subtitle: "Badanie cech fizycznych i ich zależności u pingwinów z Antarktyki"
+author: "Weronika Duda"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    smooth_scroll: true
+    collpased: true
+    df_print: paged
+    number_sections: false
+    warnings: false
+    theme: united
+    highlight: tango
+runtime: shiny
+---
+
+```{r setup, include =FALSE}
+install.packages("palmerpenguins", repos = "https://cran.rstudio.com/")
+install.packages("tidymodels", repos = "https://cran.rstudio.com/")
+install.packages("scales", repos = "https://cran.rstudio.com/")
+install.packages("visdat", repos = "https://cran.rstudio.com/")
+install.packages("mice", repos = "https://cran.rstudio.com/")
+install.packages("psych", repos = "https://cran.rstudio.com/")
+install.packages("RColorBrewer", repos = "https://cran.rstudio.com/")
+install.packages("corrplot", repos = "https://cran.rstudio.com/")
+install.packages("CGPfunctions", repos = "https://cran.rstudio.com/")
+install.packages("plotly", repos = "https://cran.rstudio.com/")
+```
+
+
+# Wprowadzenie
+
+Dane zawarte w pakiecie `palmerpenguins` zostały zebrane w latach 2007 - 2009 na archipelagu Palmer na Antarktyce przez Dr. Kristen Gorman razem z Palmer Station Long Term Ecological Research Program, który jest częścią "The US Long Term Ecological Research Network". 
+
+W pakiecie `palmerpenguins` znajdują się dwa zbiory danych: `pengiuns` i `penguins_raw`. Oba zbiory zawieraja informacje o 344 dorosłych pingwinach z trzech różnych gatunków. 
+
+W tym projekcie do analizy wykorzystam zbiór `pinguins`.
+
+W poszukiwaniu ciekawych informacji na temat analizowanego zbioru danych dowiedziałam się, że pingwiny nie cechują się dymorfizmem płciowym, co oznacza, że po samym wyglądzie zewnętrzym nie sposób rozróżnić samicę od samca. Taka ocena jest możliwa dopiero po badaniu DNA.
+
+W związku z tym, w swoim EDA postaram poszukać cech charakterystycznych, które mogą wskazywać na płeć pingwina danego gatunku. 
+Oprócz tego dowiem się między innymi:
+
+* Jak wygląda rozkład cech fizycznych wśród pingwinów?
+* Jakie są główne cechy odróżniające poszczególne gatunki pingwinów?
+* Jakie cechy mogą być kluczowe dla identyfikacji poszczególnych gatunków?
+* Jak wygląda rozkład masy ciała w zależności od płci i gatunku pingwinów?
+* Czy istnieją związki między różnymi cechami fizycznymi pingwinów?
+* Czy długość płetwy ma związek z masą ciała pingwinów?
+* Jakie są różnice w masie ciała między wyspami, na których zamieszkują pingwiny?
+* Jakie są różnice w długości płetwy i dzioba między gatunkami i płciami?
+* Czy istnieją widoczne różnice między płcią pingwinów w zakresie cech fizycznych, takich jak długość i szerokość dzioba, długość płetw?
+* Czy są cechy, które są bardziej zróżnicowane między płciami niż inne?
+* Czy cechy fizyczne pingwinów różnią się w zależności od wyspy, na której żyją?
+* Czy są widoczne zmiany w cechach fizycznych pingwinów w różnych latach badania?
+
+## Pakiety, które wykorzystuję
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(scales)
+library(visdat)
+library(dplyr)
+library(ggplot2)
+library(mice)
+library(psych)
+library(knitr)
+library(RColorBrewer)
+library(corrplot)
+library(CGPfunctions)
+```
+
+```{r, , warning=FALSE, message=FALSE}
+library(palmerpenguins)
+data(package = 'palmerpenguins')
+```
+
+## Zmienne
+
+* `species`: Zmienna kategoryczna określająca gatunek pingwina (Adelie, Chinstrap, Gentoo).
+* `island`: Zmienna kategoryczna reprezentująca wyspę, na której odbywały się badania nad pingwinami (Biscoe, Dream, Torgersen).
+* `bill_length_mm`: Liczba zmiennoprzecinkowa reprezentująca długość dzioba pingwina w milimetrach.
+* `bill_depth_mm`: Liczba zmiennoprzecinkowa określająca głębokość (wysokość) dzioba pingwina w milimetrach.
+* `flipper_length_mm`: Liczba całkowita reprezentująca długość płetwy przedniej u pingwina w milimetrach.
+* `body_mass_g`: Liczba całkowita wyrażająca masę ciała pingwina w gramach.
+* `sex`: Zmienna kategoryczna określająca płeć pingwina.
+* `year`: Zmienna całkowitoliczbowa wskazująca rok, w którym odbyły się badania nad pingwinami.
+
+```{r}
+visdat::vis_dat(penguins)
+```
+
+# Wstępna analiza
+
+## 1. Sprawdzenie kilku początkowych wartości w zbiorze
+
+```{r}
+head(penguins, 4)
+```
+## 2. Sprawdzenie struktury pliku
+
+```{r}
+str(penguins)
+```
+
+## 3. Wyznaczenie podstawowych statystyk opisowych
+
+```{r, message=FALSE, warning=FALSE}
+summary(penguins)
+```
+
+```{r, warning=FALSE, message=FALSE}
+describe.by(penguins, penguins$year)
+```
+Rozbudowuję analizę o sprawdzenie wartości maksymalnych dla każdej z badanych cech fizycznych pingwinów, grupując je i prezentując wyłącznie wiersze, które zawierają wartości maksymalne.
+
+*Korzystam z funkcji `slice()` z pakietu `dplyr`, która jest używana do wybierania określonych wierszy z ramki danych na podstawie ich pozycji. * 
+*Można jej użyć do wybierania konkretnych wierszy na podstawie indeksów lub warunków logicznych.*
+
+W tym przypadku: dla każdej cechy, wybiera tylko ten wiersz, w którym wartość w kolumnie `wartość_max` jest największa (przy użyciu funkcji `which.max()`)
+
+```{r}
+penguins %>%
+  select(-c(species, island, sex)) %>%
+  pivot_longer(cols = -c(year), names_to = "cecha") %>%
+    rename(
+    cecha = cecha,
+    wartość_max = value,
+    rok = year
+  ) %>%
+  group_by(cecha) %>%
+  slice(which.max(wartość_max)) %>%
+  arrange(cecha, wartość_max, rok) %>%
+  select(cecha, wartość_max, rok)
+```
+
+Postepuję analogicznie w celu wyświetlenia wartości minimalnych.
+
+```{r}
+penguins %>%
+  select(-c(species, island, sex)) %>%
+  pivot_longer(cols = -c(year), names_to = "cecha") %>%
+    rename(
+    cecha = cecha,
+    wartość_min = value,
+    rok = year
+  ) %>%
+  group_by(cecha) %>%
+  slice(which.min(wartość_min)) %>%
+  arrange(cecha, wartość_min, rok) %>%
+  select(cecha, wartość_min, rok)
+```
+Wyłącznie wartość maksymalna i minimalna zmiennej `bill_depth_mm` pochodzi z tego samego roku badania. Wskazuje to na zmienność badanych cech fizycznych pingwinów w czasie.
+
+## 4. Sprawdzenie, czy występują braki danych
+
+```{r}
+md.pattern(penguins, rotate.names = TRUE)
+```
+Korzystając zarówno w funkcji `summary()` jak i `md.pattern()` dowiaduję się, że braki danych `NA` wystepują we wszystkich zmiennych dotyczących cech badanych pingwinów tj: `bill_length_mm`,  `bill_depth_mm`, `flipper_length_mm`, `body_mass_g`, ``sex.`
+
+Ponieważ odsetek brakujących wartości w ogóle danych jest stosunkowo duży, postaram się dopasować wartości brakujące w zmiennych numerycznych za pomocą mediany, a w zmiennej `sex` zamienię wartość `NA` na wartość *unidentified*, czyli niezidentyfikowany. 
+
+```{r}
+penguins <- penguins %>%
+mutate_if(is.numeric, ~ifelse(is.na(.), median(., na.rm = TRUE), .)) %>%
+  mutate(sex = case_when(
+    is.na(sex) ~ "unidentified",
+    sex == 1 ~ "female" ,
+    sex == 2 ~ "male",
+    TRUE ~ sex
+  ))
+
+penguins$sex <- factor(penguins$sex)
+
+head(penguins)
+```
+Znowu korzystam z funkcji `md.pattern()`, tym razem aby potwierdzić sukces w czyszczeniu danych.
+
+```{r}
+md.pattern(penguins, rotate.names = TRUE)
+```
+
+## 5. Wgląd w zmienne kategoryczne
+
+Specyfika badanego zbioru danych wskazuje na to, że zmienne kategoryczne nie bedą wymagać dalszej obróbki. 
+
+Badam jednak ich liczebności w każdej z kategorii.
+
+```{r}
+table(penguins$sex)
+table(penguins$island)
+table(penguins$species)
+```
+
+Przy okazji dowiaduję się, ile pingwinów danej płci (oraz wartości niezidentyfikowanych) zostało zbadanych z poszczególnych gatunków na każdej z wysp objętych ekspedycjami.
+
+*Korzystam z funkcji `xtabs()` tworzącej tabelę przestawną, która pokazuje liczbę wystąpień dla każdej kombinacji wartości zmiennych `island`, `sex` oraz `species`.*
+
+```{r}
+xtabs(~ species + island + sex, data = penguins)
+```
+
+Pozwolę sobie zwizualizować, ile pingwinów z każdego z gatunków zostało zbadanych na każdej z wysp.
+
+```{r}
+penguins %>%  
+  ggplot() +
+  geom_bar(aes(x = island, fill = species),
+           color = "white", 
+           position = "fill") +
+  scale_fill_brewer(palette = "Accent") +
+  theme_light() +
+  labs(title = "Wyspa, a gatunek pingiwna",
+       x = "Wyspa",
+       y = "Odsetek pingwinów",
+       fill = "Gatunek")
+```
+
+
+## 6. Wgląd w zmienne numeryczne
+
+### Masa ciała
+
+```{r}
+penguins %>%
+  ggplot() +
+  geom_histogram(aes(x = body_mass_g), 
+                 bins = 15,
+                 color = "darkblue", fill = "lightblue") +
+  theme_minimal() +
+  labs(title = "Waga pingwinów",
+       x = "Masa ciała (g)",
+       y = "Liczba pingwinów")
+```
+
+Powyższy wykres sugeruje obecność wartości odstających lub skośność w rozkładzie.
+
+```{r}
+summary(penguins$body_mass_g)
+```
+Patrząc na rozpiętość od minimalnej wartości (2700 g) do maksymalnej (6300 g), widać rozproszenie danych. 
+Można również zauważyć, że wartość maksymalna jest znacznie wyższa niż kwartyl górny (3rd quartile), co sugeruje skosność rozkładu.
+
+Sprawdzam zatem obecność wartości odstających: określam granice dla wartości odstających na podstawie odległości IQR (różnica między 1 i 3 kwartylem). Wartości poza zakresem 1,5-krotnościowego lub 3-krotnościowego IQR mogą być potencjalnie uznane za wartości odstające.
+
+```{r}
+q1 <- quantile(penguins$body_mass_g, 0.25)
+q3 <- quantile(penguins$body_mass_g, 0.75)
+
+# Obliczam IQR
+iqr <- q3 - q1
+
+# Określam granice wartości odstających
+lower_bound <- q1 - 1.5 * iqr
+upper_bound <- q3 + 1.5 * iqr
+
+wartości_odstające <- penguins$body_mass_g[penguins$body_mass_g < lower_bound | 
+                                             penguins$body_mass_g > upper_bound]
+
+if (length(wartości_odstające) > 0) {
+  cat("Znalezione wartości odstające:", wartości_odstające, "\n")
+} else {
+  cat("Brak wartości odstających w danych.\n")
+}
+```
+Powyższe obserwacje potwierdzę za pomocą wykresu pudełkowego.
+
+```{r}
+penguins %>%
+  ggplot() +
+  geom_boxplot(aes(x = body_mass_g),
+                 color = "darkblue", fill = "lightblue") +
+  theme_light() +
+  labs(title = "Masa ciała",
+       x = "Masa ciała (g)")
+```
+
+
+### Długość dzioba
+
+```{r, warning=FALSE, message=FALSE}
+penguins %>%
+  ggplot() +
+  geom_histogram(aes(x = bill_length_mm, y = ..density..), 
+                 bins = 15,
+                 color = "darkblue", fill = "lightblue") +
+  geom_density(mapping = aes( x = bill_length_mm), color = "darkblue", linewidth = 1) +
+  theme_minimal() +
+  labs(title = "Długość dzioba",
+       x = "Długość dzioba",
+       y = "Gęstość")
+```
+
+Na wykresie można zauważyć, że bez względu na gatunek, znacząca większość pingwinów ma dzioby o długości w przedziale od około 36 do 52 mm. 
+Tylko parenaście ze zbadanych osobników posiada krótsze lub dłuższe dzioby, co spróbuję potwierdzić za pomocą statystyk opisowych.
+
+```{r}
+summary(penguins$bill_length_mm)
+```
+
+```{r}
+library(palmerpenguins)
+quantile(penguins$bill_length_mm, 
+         probs = c(0, 0.05, 0.25, 0.5, 0.75, 0.95, 1))
+```
+
+Widać, że tylko 5% dziobów jest mniejszych niż 35.7mm oraz około 5% przekracza wartość 52mm.
+
+Rysuję jeszcze wykres pudełkowy z wąsem.
+
+```{r}
+library(ggplot2)
+penguins %>%
+  ggplot() +
+  geom_boxplot(aes(x = bill_length_mm),
+                 color = "darkblue", fill = "lightblue") +
+  theme_light() +
+  labs(title = "Długość dzioba",
+       x = "Długość dzioba")
+```
+
+
+### Wysokość dzioba
+
+```{r}
+penguins %>%
+  ggplot() +
+  geom_density(aes(x = bill_depth_mm), 
+                 color = "darkblue", fill = "lightblue") +
+  theme_minimal() +
+  labs(title = "Wysokość dzioba",
+       x = "Wysokość dzioba (mm)",
+       y = "Gęstość")
+```
+
+```{r}
+summary(penguins$bill_depth_mm)
+```
+
+Analizując wykres gęstości i statystyki opisowe, można zaobserwować, że dane wydają się być względnie symetryczne, ponieważ mediana jest blisko średniej, a wartości pierwszego i trzeciego kwartyla są mniej więcej w równej odległości od mediany.
+
+Upewniam się, że rozkład zmiennej `bill_depth_mm` jest stosunkowo symteryczny rysując wykres pudełkowy z wąsem.
+
+```{r}
+library(ggplot2)
+penguins %>%
+  ggplot() +
+  geom_boxplot(aes(x = bill_depth_mm),
+                 color = "darkblue", fill = "lightblue") +
+  theme_light() +
+  labs(title = "Wysokość dzioba",
+       x = "Wysokość dzioba (mm)")
+```
+
+### Długość płetwy
+
+```{r}
+penguins %>%
+  ggplot() +
+  geom_density(aes(x = flipper_length_mm), 
+                 color = "darkblue", fill = "lightblue") +
+  theme_minimal() +
+  labs(title = "Długość płetwy",
+       x = "Długość płetwy (mm)",
+       y = "Gęstość")
+```
+
+Można zauważyć, że pingwinów o długościach płetw między 200 a 210 mm jest znacznie mniej niż tych o długościach oscylujących w okolicy 190 mm. Zaskakującym zjawiskiem jest wzrost liczby pingwinów o płetwach o długościach między 210 a 220 mm.
+
+```{r}
+summary(penguins$flipper_length_mm)
+```
+
+```{r}
+library(ggplot2)
+penguins %>%
+  ggplot() +
+  geom_boxplot(aes(x = flipper_length_mm),
+                 color = "darkblue", fill = "lightblue") +
+  theme_light() +
+  labs(title = "Długość płetwy",
+       x = "Długość płetwy (mm)")
+```
+
+Z analizy statystyk opisowych i wykresu pudełkowego z wąsem można wnioskować, że w rozkładzie długości płetw występuje prawostronna skosność.
+
+* Badam powiązania między zmiennymi ilościowymi.
+
+Ponieważ rozkłady badanych zmiennych odbiegają od rozkładu normalnego i badana zbiorowość nie jest liczna to korzystam ze współczynnika korelacji rangowej Spearmana.
+
+```{r, warning=FALSE, message=FALSE}
+library(palmerpenguins)
+library(corrplot)
+
+zmienne <- c("bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g")
+
+correlation <- cor(penguins[, zmienne], method = "spearman", use = "complete.obs")
+round(correlation, 2)
+corrplot(correlation, method = "square", type = "upper", tl.col = "black")
+```
+
+Co ciekawe każda ze zmiennych numerycznych jest w pewnym stopniu skorelowana z dowoloną inną.
+Widać, że niewielką korelacją cechują się zmienne `bill_length_mm` i `bill_depth_mm`. Jednak korelacje pomiędzy pozostałymi zmiennymi są już większe, szczególnie ciekawi mnie siła zależność między `body_mass_g` , a `flipper_legth_mm`oraz `body_mass_g` a `bill_length_mm` oraz `bill_length_mm`, a `flipper_length_mm`.
+
+Do badania ostatnich zależności wrócę w dalszej analizie.
+
+* Wstępną analizę podsumuję sprawdzeniem przeciętnych wartości dla zmiennych ilościowych dla każdego z gatunków.
+
+Wykluczam zmieną `year`, która również jest zmienną numeryczną.
+
+```{r, warning=FALSE, message=FALSE}
+penguins %>%
+  select(-year) %>%  
+  group_by(species) %>%
+  summarize_if(is.numeric, mean, na.rm = TRUE)
+```
+
+# Badanie zależności między zmiennymi
+
+### Masa ciała
+
+Próbując odpowiedzieć na wcześniej postawione pytania badawcze, intuicyjnie wybór cechy do rozpoczęcia analizy pada na masę ciała.
+
+a. Zaczynam od poznania, jakie są różnice w rozkładzie mas ciała między gatunkami pingwinów.
+
+```{r}
+ggplot(data = penguins, aes(x = body_mass_g)) +
+  geom_histogram(aes(fill = species), 
+                 alpha = 0.7,
+                 bins = 15,
+                 position = "identity") +
+  labs(x = "Masa ciała (g)",
+       y = "Liczba pingwinów",
+       title = "Masa ciała w poszczególnych gatunkach",
+       fill = "Gatunek") +
+    scale_fill_brewer(palette = "Accent") +
+    theme_light()+
+    theme(legend.position = "bottom",
+        legend.text = element_text(size = 11),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 17))
+```
+
+Dowiaduję się, że generalnie najcięższe pingwiny to te z gatunku Gentoo. Spośród pingwinów o mniejszej masie ciała, więcej jest tych z gatunku Adelie niż Chinstrap, co wynika najprawdopodobniej z większej liczby zebranych danych o tym gatunku.
+
+Ta obserwacja popycha mnie do sprawdzenia, czy może miejsce w jakim zostały zebrane dane ma jakiś wpływ na rozkład masy ciała w danych gatunkach.
+
+b. Sprawdzam rozkład mas ciała pingwinów zbadanych na poszczególnych wyspach.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+ordered_islands <- c("Torgersen", "Biscoe", "Dream")
+
+penguins %>%
+  filter(sex %in% c("female", "male")) %>%
+  ggplot(aes(
+    x = factor(island, levels = ordered_islands),
+    y = body_mass_g,
+    fill = species
+  )) +
+  geom_boxplot() +
+  labs(x = "Wyspy",
+       y = "Masa ciała (g)",
+       title = "Rozkład masy ciała pingwinów badanych na poszczególnych wyspach",
+       fill = "Gatunek") +
+  scale_fill_brewer(palette = "Accent") +
+  theme_light() +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 10),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 15))
+
+```
+
+Podobnie jak na histogramach, na wykresach pudełkowych widać, że pingwiny Gentoo mają przeciętnie wiekszą masę ciała niż pingwiny pozostałych gatunków. 
+Jednak nie wygląda na to, by występowała zależność między miejscem zebrania danych, a wagą pingwinów: wnioskuję to po niemalże identycznych wynikach uzyskanych dla gatunku Adelie, który był badany na każdej z wysp.
+
+Dla dopełnienia analizy wyznaczam jeszcze, czy średnie wartości masy ciała pingwinów różnią się w zależności od wyspy, na  której zostało przeprowadzone badanie.
+
+```{r}
+penguins %>%
+  group_by(wyspa = island) %>%
+  summarize(średnia_masa_ciała = mean(body_mass_g, na.rm = TRUE)) %>%
+  arrange(desc(średnia_masa_ciała)) -> średnia_masa_ciała_według_wypsy
+
+średnia_masa_ciała_według_wypsy
+```
+
+Powyższe wyniki potwierdzają, że średnia waga pingwinów jest największa na wyspie Biscoe. Wynika to najprawdopobniej z obecności na tej wyspie pingwinów Gentoo (najcięższych z badanych gatunków). 
+
+c. Sprawdzam, czy średnia masa ciała badanych pingwinów zmieniała się na przestrzeni lat.
+
+```{r}
+library(dplyr)
+
+penguins %>%
+  group_by(rok_badania = as.factor(year)) %>%
+  summarize(średnia_masa_ciała = mean(body_mass_g, na.rm = TRUE)) %>%
+  arrange(factor(rok_badania, levels = unique(rok_badania))) -> średnia_masa_ciała_według_roku_badania
+
+średnia_masa_ciała_według_roku_badania
+```
+
+Co ciekawe po ustawieniu lat w kolejności chronologicznej okazało się, że waga pingwinów nie jest zmienną, która stale rośnie, ponieważ w roku 2008 wartość średniej masy ciała była wyższa niż w roku następnym.
+
+Przejdę teraz do próby zbadania różnicy w rozkładach masy ciała między płciami, tym razem z podziałem na gatunki.
+
+d. Sprawdzam, jakie są różnice w rozkładach mas ciała między gatunkami pingwinów biorąc pod uwagę płeć zwierzęcia.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+penguins %>%
+  filter(sex == c("female", "male")) %>%
+  arrange(body_mass_g) %>%
+  ggplot(aes(
+    x = species,
+    y = body_mass_g,
+    col = sex
+  )) +
+  geom_boxplot() +
+  theme_light() +
+  labs(x = "Gatunki",
+       y = "Masa ciała (g)",
+       title = "Rozkład masy ciała w poszczególnych gatunkach",
+       color = "Płeć") +
+  scale_color_manual(values = c("#F08080", "#66b3ff")) +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 11),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 17))
+```
+
+Z wykresów widać, że w każdym z gatunków samce są przeciętnie cięższe od samic, co jest zgodne z moimi intuicyjnymi przewidywaniami w tej kwestii.
+Ciekawym zjawiskiem jest pojawiająca się wartość odstająca w danych dotyczących samic z gatunku Chinstrap.
+
+e. Badam związek między masą ciała, a długością płetwy pingwinów z podziałem na płeć i gatunek.
+
+```{r}
+penguins %>%
+  filter(sex == c("female", "male")) %>%
+      ggplot(aes(x = flipper_length_mm,
+                 y = body_mass_g)) +
+  geom_point(aes(color = sex), alpha = 0.5, size = 3) +
+  scale_color_manual(values = c("#F08080", "#66b3ff")) +
+  labs(title = "Masa ciała, a długość płetwy",
+       x = "Długośc płetwy (mm)",
+       y = "Masa ciała (g)",
+       color = "Płeć") +
+  theme_bw() +
+  facet_wrap(~species) +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 11),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 17))
+```
+
+Można zauważyć, że pingwiny z gatunku Gentoo mają największą masę ciała według długości płetwy, zatem jest możliwa identyfikacja tego gatunku za pomocą tych dwóch cech. 
+Ponownie pojawia się też generalna zależność, że samce charakteryzują się większą masą ciała.
+
+### Długość płetwy 
+
+Kontynując analizę cech fizycznych pingwinów przechodzę do badania badania długości płetw oraz związków z innymi zmiennymi w badanych danych.
+
+a. Sprawdzam, czy występują różnice w rozkładach długości płetw pingwinów w zależności od ich gatunku.
+
+```{r, warning=FALSE, message=FALSE}
+penguins %>%
+  ggplot(aes(x = species, y = flipper_length_mm)) +
+  geom_boxplot(aes(color = species), width = 0.3) +
+  geom_jitter(aes(color = species), alpha = 0.5, 
+              position = position_jitter(width = 0.2, seed = 0)) +
+  scale_color_brewer(palette = "Accent") +
+  labs(title = "Rozkład długości płetw z podziałem na gatunki",
+        x = "Gatunki",
+        y = "Długość płetwy (mm)",
+       col = "Gatunek") +
+  theme_light() +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 11),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 17))
+```
+
+Wszystkie trzy gatunki pingwinów - Adelie, Chinstrap i Gentoo - wykazują różnice w długościach płetw u swoich osobników. Warto zauważyć, że pingwiny Gentoo, które są średnio najcięższe spośród tych gatunków, cechują się również średnio najdłuższymi płetwami, zatem zdecydowanie łatwiej odróżnić je od innych pingwinów na podstawie tych parametrów.
+
+To spostrzeżenie wskazuje na istnienie pewnej korelacji między masą ciała a długością płetw u tych gatunków.
+W związku z tym badam, czy w przypadku innych kombinacji zmiennych wystepuje podobna zależność.
+
+b.  Ocena, czy istnieje korelacja między długością dzioba, a długością płetw u pingwinów.
+
+```{r, message=FALSE, warning=FALSE}
+penguins %>%
+  ggplot() +
+  geom_point(aes(x = flipper_length_mm,
+                 y = bill_length_mm,
+                 color = species,
+                 shape = species,
+                 size = 1,
+                 alpha = 0.8)) +
+  scale_color_brewer(palette = "Accent") +
+  theme_light() +
+  labs(title = "Gatunek pingwina, a długość jego płetwy i dzioba",
+       x = "Długość płetwy",
+       y = "Długość dzioba",
+       col = "Gatunek") +
+  theme(legend.text = element_text(size = 10),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 17))
+```
+
+Na pierwszy rzut oka widać, że pingwiny z gatunku Adelie mają krótsze dzioby i płetwy, natomiast Gentoo cechują się dłuższymi dziobami i większymi płetwami, dzięki czemu można założyć, że badane cechy są ze sobą powiązane.
+
+Skoro występują różnice w długości płetw w zależności od badanego gatunku, to idąc tym tropem, sprawdzę, czy występują też zależności między długością płetw, a wyspą na jakiej zostały zebrane dane.
+
+c. Analizuję zależność między długością płetw a konkretnymi wyspami, na których te pingwiny zostały zbadane.
+
+```{r}
+penguins %>%
+  group_by(island) %>%
+  summarize(średnia_długość_płetw = mean(flipper_length_mm, na.rm = TRUE)) %>%
+  arrange(desc(średnia_długość_płetw)) -> średnia_długość_płetw_według_wyspy
+
+średnia_długość_płetw_według_wyspy
+```
+
+Podobnie jak przy masie ciała, przeważająca liczba pingwinów Gentoo (o najdłuższych płetwach) powoduje, że na wyspie Biscoe średnia długość płetw jest największa.
+
+d. Badam, czy występują różnice długościach płetw i dziobów w zależności od płci i gatunku.
+
+```{r, message=FALSE}
+penguins %>%
+  filter(sex %in% c("female", "male")) %>%
+  group_by(species, sex) %>%
+  summarise(
+    mediana_dł_płetwy = quantile(flipper_length_mm, 0.5),
+    mediana_dł_dzioba = quantile(bill_length_mm, 0.5),
+    )
+```
+
+Ciekawą obserwacją z powyższych wyników jest spora różnica pomiędzy poszczególnymi wartościami przyjmowanymi przez obie płcie z różnych gatunków. 
+
+```{r}
+penguins %>% 
+  filter(sex == c("female", "male")) %>% 
+  ggplot(aes(flipper_length_mm, bill_length_mm, colour = sex, alpha = 0.5)) +
+  geom_point(size = 3) +
+  facet_wrap(~ species) +
+  labs(x = "Długość płetwy (mm)",
+       y = "Długość dzioba (mm)",
+       title = "Długość płetwy, a długość dzioba") +
+  theme_bw() +
+  scale_color_manual(values = c("#F08080", "#66b3ff")) +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 10),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 17))
+```
+
+Zauważam, że u pingwinów Adelie ciężej rozpoznać byłoby płeć po długości płetwy czy dzioba, ponieważ wartości są skupione wokół wartości średniej.
+Gatunki Gentoo i Chinstrap, w przeciwieństwie do Adelie, odznaczają się wyraźnym zróżnicowaniem płciowym w badanym zakresie.
+Oznacza to, że prawdopodobieństwo, że zbadany pingwin Gentoo z krótszymi płetwami (między 205 a 215 mm) będzie samicą jest stosunkowo wysokie. Podobnie, można przypuszczać, że samiec pingwina o długim dziobie jest z gatunku Gentoo lub Chinstrap.
+
+### Długość dzioba
+
+Rozbudowuję analizę o badanie związków długości dzioba z pozostałymi cechami.
+
+a. Najpierw sprawdzam, czy istnieje istotna statystycznie różnica w długości dzioba między samcami i samicami pingwinów różnych gatunków.
+
+```{r, message=FALSE, warning=FALSE}
+penguins %>%
+  filter(sex %in% c("female", "male")) %>%
+  group_by(sex) %>%
+  summarize(
+    średnia_długość_dzioba = mean(bill_length_mm),
+    mediana_długość_dzioba = median(bill_length_mm),
+    odchylenie_std_długość_dzioba = sd(bill_length_mm),
+    Q1 = quantile(bill_length_mm, 0.25),
+    Q3 = quantile(bill_length_mm, 0.75)
+  )
+```
+
+Z powyższych statystyk wynika, że w długości dzioba pingwinów różnych gatunków zauważalny jest dymorfizm płciowy. Średnia oraz mediana długość dzioba u samców pingwinów bez względu na gatunek jest istotnie większa od średniej długości u samic. Dużą różnicę widać również po analizie kwantyli. 
+
+b. Poszerzam analizę o badanie zależności między długością dzioba a płcią o podział na płeć i gatunek. 
+
+```{r, message=FALSE, warning=FALSE}
+penguins %>%
+  filter(sex == c("female", "male")) %>%
+  group_by(species) %>%
+  
+  ggplot() +
+  geom_histogram(aes(x = bill_length_mm, fill = sex), 
+                 bins = 15, alpha = 0.5, position = "identity") +
+  labs(title = "Różnice w długości dzioba w zależności od płci") +
+  facet_wrap(~ species, ncol = 3) +
+  scale_fill_manual(values = c("#F08080", "#66b3ff")) +
+  labs(x = "Długość dzioba (mm)",
+       y = "Liczba pingwinów",
+       title = "Długość dzioba w zależności od płci",
+       fill = "Płeć") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 10),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 17))
+```
+
+Uwzględniając różne gatunki, można zauważyć, że dzioby samic Adelie przeważnie nie przekraczają długości 43 mm, a pozostałych gatunków około 52.5 mm.
+Podobnie, podczas gdy dzioby samców Chinstrap czy Gentoo osiągają średnio długość około 60 mm, samce Adelie mają niewiele dłuższe dzioby od samic (maksymalnie około 45 mm). 
+Te zauważalne różnice sugerują istnienie wyraźnych różnic w długości dzioba między płciami w populacjach badanych gatunków pingwinów.
+
+c. Sprawdzam, czy pojawiają się różnice w średniej długość dzioba pingwinów na różnych wyspach.
+
+```{r}
+penguins %>%
+  group_by(island) %>%
+  summarise(mean_bill_length = mean(bill_length_mm)) %>%
+  arrange(mean_bill_length)
+```
+
+Widoczne, różnice w przeciętnych długościach dziobów pingwinów na poszczególnych wyspach są istotne i mogą stanowić kluczową cechę w identyfikacji, zwłaszcza w przypadku wyspy Torgersen, gdzie przeważają osobniki o krótszych dziobach.
+Średnia długość dzioba pingwinów z tej wyspy wynosi około 39.06 mm. 
+
+```{r}
+penguins %>%
+ggplot(aes(x = island, y = bill_length_mm)) +
+  geom_boxplot() +
+  labs(title = "Rozkład długości dziobów pingwinów na różnych wyspach",
+       x = "Wyspa",
+       y = "Długość dzioba (mm)") +
+  theme_light() +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 10),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 17))
+```
+
+Zauważam, że na podstawie długości dzioba pingwina można zidentyfikować, czy z dużym prawdopodobieństwem pochodzi on z wyspy Torgersen. Wynika to z tego,  że pingwiny zbadane na wyspie Torgersen charakteryzują się najmniejszymi wymiarami dzioba, tzn. dziób o długości poniżej 39 mm wskazuje na przynależność do tej wyspy.
+
+d. Badam zależności między różnymi parametrami dzioba dla każdego z gatunków pingwinów, aby zrozumieć ich wzajemne powiązania.
+
+```{r, message=FALSE, warning= FALSE}
+penguins %>%
+  ggplot() +
+  geom_point(aes(x = bill_depth_mm, y = bill_length_mm, col = species), 
+             size = 2.5, alpha = 0.75) +  
+  # Dodaję linię regresji dla każdego z gatunków
+  geom_smooth(aes(x = bill_depth_mm, y = bill_length_mm, col = species),
+              method = "lm", se = FALSE) +
+  scale_color_brewer(palette = "Accent") +
+  theme_light() +
+  labs(title = "Gatunek pingwina, a wysokość i długość jego dzioba",
+       x = "Wysokość dzioba",
+       y = "Długość dzioba",
+       col = "Gatunek")+
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 10),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 17))
+```
+
+Zauważam, że pingwiny Adelie oraz Chinstrap cechują się krótszymi, lecz wyższymi/głębszymi dziobami w porównaniu do pingwinów z gatunku Gentoo. Dodatkowo, można zaobserwować, że pingwiny Adelie w większości przypadków posiadają krótsze dzioby, co pozwala na potencjalną identyfikację tego gatunku. 
+
+Z uwagi na różnice w długości i wysokości dzioba istnieje wysokie prawdopodobieństwo zidentyfikowania przynależności pingwina do jednego z badanych gatunków na podstawie jego dzioba.
+
+### Wysokość dzioba 
+
+W dalszej części analizy skupię się na wysokości dzioba i jej powiązaniach z innymi zmiennymi. 
+
+a. Sprawdzam, czy wysokość dzioba jest zmienną pozwalającą identyfikowac pingiwny po ich gatunku.
+
+```{r, message=FALSE}
+penguins %>%
+  group_by(species) %>%
+  summarise(
+    min = min(bill_depth_mm),
+    Q01 = quantile(bill_depth_mm, 0.01),
+    Q1 = quantile(bill_depth_mm, 0.25),
+    Q2 = quantile(bill_depth_mm, 0.5),
+    Q3 = quantile(bill_depth_mm, 0.75),
+    Q99 = quantile(bill_depth_mm, 0.99),
+    max = max(bill_depth_mm))
+```
+
+Otrzymane wyniki wskazują na to, że prawdopodobnie wysokość dzioba pozwoli na zidentyfikowanie pingwina z gatunku Gentoo.
+
+```{r, message=FALSE, warning=FALSE}
+penguins %>%
+  ggplot() +
+  geom_density(aes(x = bill_depth_mm, fill = species), alpha = 0.7) +   
+  theme_light() +
+  scale_fill_brewer(palette = "Accent") +
+  labs(title = "Wysokość dzioba, a gatunek pingwina",
+       x = "Wyskość dzioba (mm)",
+       y = "Gęstość",
+       fill = "Gatunek") +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 10),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 17))
+```
+
+Podobnie jak na podstawie statystyk opisowych, na podstawie powyższego wykresu można wnioskować, że w wypadku spotkania pingwina z relatywnie mniejszym dziobem (wysokością poniżej 16 mm) to najprawdopodobniej będzie to pingwin z gatunku Gentoo.
+
+b. Analizuję zmiany w wysokości dzioba pingwinów w poszczególnych latach badań, mając na uwadze ewentualne zmiany tej cechy w kolejnych okresach czasowych.
+
+```{r}
+penguins %>%
+  group_by(rok_badania = as.factor(year)) %>%
+  summarize(
+    średnia_wysokość_dzioba = mean(bill_depth_mm),
+    mediana_wysokość_dzioba = median(bill_depth_mm),
+    odchylenie_std_wysokość_dzioba = sd(bill_depth_mm),
+    Q1 = quantile(bill_depth_mm, 0.25),
+    Q3 = quantile(bill_depth_mm, 0.75)
+  ) %>%
+  arrange(factor(rok_badania, levels = unique(rok_badania))) -> średnia_wysokosc_dzioba_według_roku_i_plci
+
+średnia_wysokosc_dzioba_według_roku_i_plci
+```
+
+Podobnie jak w przypadku masy ciała, zauważalne jest, że średnia wysokość dzioba jest wyższa w 2008 roku niż w 2007 roku, natomiast w 2009 roku jest niższa niż w 2008 roku. 
+
+Zwizualizuję jeszcze rozkłady wysokości dzioba w latach badania.
+
+```{r, message=FALSE, warning=FALSE}
+penguins %>%
+  group_by(year) %>%
+  
+ggplot(aes(x = bill_depth_mm, y = as.factor(year))) +
+  geom_boxplot() +
+  labs(title = "Rozkład wysokości dzioba w różnych latach badania", 
+       x = "Wysokość dzioba",
+       y = "Rok badania") +
+  theme_light() +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 10),
+        axis.title = element_text(color = "black", size = 10),
+        plot.title = element_text(size = 17))
+```
+
+Jak zostało to  wcześniej zauważone niektóre zmienne wykazywały tendencję wzrostu do 2008 roku, a później spadku.
+W związku z tym można by zastanowić się, czy podobny trend występuje w przypadku innych zmiennych, które jeszcze nie były analizowane pod tym kątem, więc przeprowadzam analizę, aby sprawdzić, czy ten wzorzec zachowania występuje również w innych zmiennych.
+
+c. Badam zmiany w pozostałych zmiennych w zależności od roku.
+
+```{r}
+penguins %>%
+  group_by(year) %>%
+  summarize(mean_flipper_length = mean(flipper_length_mm),
+            mean_bill_depth = mean(bill_length_mm))
+```
+
+Podobną tendencje do wzrostu i spadku średnich wartości badanych cech można zauważyć także w przypadku długości dziobów i płetw.
+
+
+# Podsumowanie i ogólne wnioski
+
+1. Odnośnie dymorfizmu płciowego:
+
+a. Masa ciała samców jest przeważnie większa od samic.
+b. Samce i samice w poszczegółnych gatunkach charakteryzują się zauważalnymi różnicami w długości i wysokości dzioba.
+c. Różnice w badanych cechach u pingwinów w zależności od ich płci są bardziej widoczne u niektórych gatunków niż u innych.
+
+2. Odnośnie cech charakterystycznych poszczególnych gatunków:
+
+a. Pingiwny Chinstrap przeciętnie mają najdłuższy i najwyższy dziób.
+b. Pingwiny Gentoo są przeciętnie najcięższe i mają najdłuższe płetwy.
+c. Pingwiny Adelie mają średniej długości dzioby i płetwy oraz przeciętną masę ciała.
+
+3. Odnośnie różnic między badanymi pingwinami, w zależności od miejsca zbadania (wyspy):
+
+a. Pingwin z dziobem poniżej 39 mm najprawdopodobniej pochodzi z wyspy Torgersen.
+b. Nie występują zależności między miejscem zebrania danych, a masą ciała pingwinów z tego samego gatunku.
+c. Cechy charakterystyczne dominującego na danej wyspie gatunku pingwinów determinują ich odróżnienie między sobą, a nie miejsce badani.
+
+4. Odnośnie zależności między badanymi cechami pingwinów, a czasem wykonania pomiaru (roku):
+
+a. Dla wszystkich zmiennych trend wzrostu jest kontynuowany do 2008 roku, a następnie maleje.
+
+```{r}
+citation("palmerpenguins")
+```
+
